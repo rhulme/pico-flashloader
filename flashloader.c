@@ -263,6 +263,14 @@ void initClock()
 
     xosc_init();
 
+    // Before we touch PLLs, switch sys and ref cleanly away from their aux sources.
+    hw_clear_bits(&clocks_hw->clk[clk_sys].ctrl, CLOCKS_CLK_SYS_CTRL_SRC_BITS);
+    while (clocks_hw->clk[clk_sys].selected != 0x1)
+        tight_loop_contents();
+    hw_clear_bits(&clocks_hw->clk[clk_ref].ctrl, CLOCKS_CLK_REF_CTRL_SRC_BITS);
+    while (clocks_hw->clk[clk_ref].selected != 0x1)
+        tight_loop_contents();
+
     pll_init(pll_sys, 1, 1500 * MHZ, 6, 2);
 
     configClock(clk_ref,
