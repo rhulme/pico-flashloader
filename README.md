@@ -42,7 +42,7 @@ The demo application included here is just to show how everything works.  It is 
 Two versions of the same application are built which flash the on-board LED at different rates and wait for a new application to be sent over UART.
 
 ## Building
-This project has been built and tested using Linux and the Pico SDK v1.2.0 but it should work with any supported build environment
+This project has been built and tested using Linux and the Pico SDK v1.3.0 but it should work with any supported build environment
 ```
 mkdir build
 cd build
