@@ -94,6 +94,25 @@ void hard_assertion_failure(void)
 #endif
 
 //****************************************************************************
+// Provide our own assert function to prevent the default version pulling
+// in 'printf' functions in debug builds
+void __assert_func(const char *filename,
+                   int line,
+                   const char *assert_func,
+                   const char *expr)
+{
+    (void)filename;
+    (void)line;
+    (void)assert_func;
+    (void)expr;
+
+    __breakpoint();
+
+    while(true)
+        tight_loop_contents();
+}
+
+//****************************************************************************
 // Calculate the CRC32 (no reflection, no final XOR) of a block of data.
 // This makes use of the DMA sniffer to calculate the CRC for us.  Speed is
 // not really a huge issue as most of the time we just need to check the
