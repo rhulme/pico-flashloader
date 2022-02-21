@@ -36,7 +36,7 @@
 #include "pico/binary_info.h"
 #include "flashloader.h"
 
-bi_decl(bi_program_version_string("1.01"));
+bi_decl(bi_program_version_string("1.02"));
 
 #if !PICO_FLASH_SIZE_BYTES
     #error PICO_FLASH_SIZE_BYTES not defined!
