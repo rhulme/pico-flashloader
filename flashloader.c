@@ -164,6 +164,10 @@ int startMainApplication()
             watchdog_hw->scratch[0] = 0;
         }
 
+        // Hold DMA block in reset again (in case the application doesn't
+        // need DMA and doesn't want to waste power)
+        reset_block(RESETS_RESET_DMA_BITS);
+
         asm volatile (
         "mov r0, %[start]\n"
         "ldr r1, =%[vtable]\n"
