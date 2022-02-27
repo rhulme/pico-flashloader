@@ -13,6 +13,11 @@ project(${PROJECT} C CXX)
 
 pico_sdk_init()
 
+# Need at least SDK v1.3.0 (due to https://github.com/raspberrypi/pico-sdk/issues/573)
+if(${PICO_SDK_VERSION_STRING} VERSION_LESS "1.3.0")
+    message(FATAL_ERROR "Pico SDK v1.3.0 or greater is required.  You have ${PICO_SDK_VERSION_STRING}")
+endif()
+
 ################################################################################
 # Helper function
 function(set_linker_script TARGET script)
@@ -77,10 +82,6 @@ pico_add_hex_output(${APP250})
 
 # Use a separate linker script for the application to make sure it is built
 # to run at the right location (after the flashloader).
-# Tell the linker to use pages no bigger than 4k or the UF2 generation from
-# the ELF image has issues
-# (see https://github.com/raspberrypi/pico-sdk/issues/573)
-target_link_options(${APP250} PRIVATE -Wl,-z,max-page-size=4096)
 set_linker_script(${APP250} memmap_application.ld)
 
 set(APP250_UF2 ${CMAKE_CURRENT_BINARY_DIR}/${APP250}.uf2)
@@ -102,10 +103,6 @@ pico_add_hex_output(${APP800})
 
 # Use a separate linker script for the application to make sure it is built
 # to run at the right location (after the flashloader).
-# Tell the linker to use pages no bigger than 4k or the UF2 generation from
-# the ELF image has issues
-# (see https://github.com/raspberrypi/pico-sdk/issues/573)
-target_link_options(${APP800} PRIVATE -Wl,-z,max-page-size=4096)
 set_linker_script(${APP800} memmap_application.ld)
 
 ################################################################################
