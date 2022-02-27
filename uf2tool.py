@@ -25,10 +25,10 @@ def auto_int(x):
     return int(x, 0)
 
 # Pad to the next multiple of 4096
-def pad(start, buf):
+def pad(start, end, buf):
     blocks = 0;
 
-    while (start % 0x1000) != 0:
+    while start < end:
         length = 256 - (start % 256)
         header = (UF2_MAGIC_START0,
                   UF2_MAGIC_START1,
@@ -62,8 +62,10 @@ def updateBuf(buf):
 # Check the uf2 file passed in buf is valid and contiguous
 def check_uf2(start, buf):
     numblocks = len(buf) // 512
+    numpadblocks = 0
     curaddr = start
     curblock = 0
+    newbuf = bytearray()
 
     assert len(buf) % 512 == 0, "Length ({}) is not a multiple of 512".format(len(buf))
 
@@ -91,13 +93,21 @@ def check_uf2(start, buf):
             assert hd[7] == FAMILY_ID_RP2040
 
         padding = newaddr - curaddr
-        assert padding == 0, f"Gap detected at {ptr}. Start is 0x{newaddr:08x}, expected 0x{curaddr:08x}"   # not UF2 requirement
+        assert padding >= 0, f"Address jumps backwards at {ptr}. Start is 0x{newaddr:08x}, expected 0x{curaddr:08x}"   # not UF2 requirement
+
+        if padding > 0:
+            curaddr, blocks = pad(curaddr, newaddr, newbuf)
+            numpadblocks += blocks
 
         assert blockno == hd[5], f"Missing block detected at {ptr}"
 
         curaddr = newaddr + datalen
+        newbuf.extend(block)
 
-    return (curaddr, numblocks)
+    # Add the number of padding blocks to the total
+    numblocks += numpadblocks
+
+    return (curaddr, numblocks, newbuf)
 
 
 def process(start, infiles, outfile):
@@ -108,11 +118,9 @@ def process(start, infiles, outfile):
     for filename in infiles:
         with open(filename, mode='rb') as f:
             try:
-                curaddr, blocks = pad(curaddr, data)
-                block += blocks
 
                 buf = f.read()
-                curaddr, blocks = check_uf2(curaddr, buf)
+                curaddr, blocks, buf = check_uf2(curaddr, buf)
                 data.extend(buf)
 
                 block += blocks
