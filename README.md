@@ -12,7 +12,7 @@ into the bootloader (or the debug interface is used to recover it).
 
 The flashloader presented here overcomes this problem by allowing the new application to be flashed before the existing application is started.  If flashing fails (e.g. due to an inopportune power loss), the flashloader itself will still be functional and will be able to retry on the next start.  If all else fails, the bootrom bootloader is started.
 
-The flashloader uses the first 4k of flash.  This means any application has to be configured to be run from a different location than normal.  This is done by a linker script ([`memmap_default.ld`](memmap_default.ld)), which has been copied from the SDK and adjusted accordingly.
+The flashloader uses the first 4k of flash.  This means any application has to be configured to be run from a different location than normal.  This is done by a linker script ([`memmap_default.ld`](memmap_default.ld)), which has been copied from the SDK and adjusted accordingly (described in more detail in [`Using in your own project`](#using-in-your-own-project)) below.
 
 In normal circumstances, the flashloader will simply jump to the normal application.  The flash functionality is only used if the watchdog scratch registers are correctly set or the normal application is invalid.
 
@@ -91,7 +91,13 @@ It should be fairly straightforward to add the flashloader to your own project u
 
 The [`CMakeLists.txt`](CMakeLists.txt) file is separated into fairly obvious sections to build the flashloader, the application (twice in this case) and then generate a combined UF2 file for initial bring-up.  The Python [script](uf2tool.py) to combine the UF2 files also performs various checks to try to catch any potential issues at build time.
 
-You can take pretty much everything in this directory and just replace the `app.c` file with your own application file(s) (obviously with the necessary changes to `CMakeLists.txt`).  If you already use your own linker script, you'll need to adjust it to start the image after the flashloader, otherwise you can use what's provided here.
+You can take pretty much everything in this directory and just replace the `app.c` file with your own application file(s) (obviously with the necessary changes to `CMakeLists.txt`).
+
+The [`memmap_default.ld`](memmap_default.ld) linker script from the SDK has been copied here and tweaked slightly to allow the start address in flash and the length of the flashloader/application to be overridden by defining `__FLASH_OFFSET` and `__FLASH_LENGTH`.  If the length is not defined, whatever flash is left will be used.
+
+These values for the flashloader and application are defined in [`memmap_defines.ld`](memmap_defines.ld), which is then included and used by [`memmap_flashloader.ld`](memmap_flashloader.ld) and [`memmap_application.ld`](memmap_application.ld).  Defining the values centrally makes it easy for them to be changed where required.  They can also be referenced in the code if required (see the definition of `sStart` in [`flashloader.c`](flashloader.c))
+
+If you already use your own linker script, I would suggest making the same modifications as made here, but if you're in that position, you probably already know what needs to be done!
 
 How a new application image is transferred to your project is down to you but at a minimum you should make sure you can detect accidental corruption during transmission (e.g. using a CRC).  The other important thing to remember is that only the raw data of the new application (with header) should be passed to the flashloader.  You may wish to turn on generation of binary images during the build process (either directly with `pico_add_bin_output` or indirectly via `pico_add_extra_outputs`).
 

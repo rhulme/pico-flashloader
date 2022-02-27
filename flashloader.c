@@ -42,6 +42,8 @@ bi_decl(bi_program_version_string("1.02"));
     #error PICO_FLASH_SIZE_BYTES not defined!
 #endif
 
+extern void* __APPLICATION_START;
+
 //****************************************************************************
 // We don't normally want to link against pico_stdlib as that pulls in lots of
 // other stuff we don't need here and we end up at just under 8k before we've
@@ -52,16 +54,10 @@ bi_decl(bi_program_version_string("1.02"));
 // start address for the application in the linker script!
 //#define USE_PICO_STDLIB
 
-#ifdef USE_PICO_STDLIB
-    static const uint32_t FLASHLOADER_SIZE = 0x3000;
-#else
-    static const uint32_t FLASHLOADER_SIZE = 0x1000;
-#endif
-
 #define flashoffset(x) (((uint32_t)x) - XIP_BASE)
 #define bl2crc(x)      (*((uint32_t*)(((uint32_t)(x) + 0xfc))))
 
-static const uint32_t  sStart = XIP_BASE + FLASHLOADER_SIZE;
+static const uint32_t  sStart = XIP_BASE + (uint32_t)&__APPLICATION_START;
 
 // The maximum number of times the flashloader will try to flash an image
 // before it gives up and boots in the bootrom bootloader
@@ -169,14 +165,14 @@ int startMainApplication()
         }
 
         asm volatile (
-        "ldr r0, =%[start]\n"
+        "mov r0, %[start]\n"
         "ldr r1, =%[vtable]\n"
         "str r0, [r1]\n"
         "ldmia r0, {r0, r1}\n"
         "msr msp, r0\n"
         "bx r1\n"
         :
-        : [start] "X" (sStart + 0x100), [vtable] "X" (PPB_BASE + M0PLUS_VTOR_OFFSET)
+        : [start] "r" (sStart + 0x100), [vtable] "X" (PPB_BASE + M0PLUS_VTOR_OFFSET)
         :
         );
     }

@@ -14,6 +14,18 @@ project(${PROJECT} C CXX)
 pico_sdk_init()
 
 ################################################################################
+# Helper function
+function(set_linker_script TARGET script)
+    target_link_directories(${TARGET} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    pico_set_linker_script(${TARGET} ${CMAKE_CURRENT_SOURCE_DIR}/${script})
+
+    # Add dependencies on the 'included' linker scripts so that the target gets
+    # rebuilt if they are changed
+    pico_add_link_depend(${TARGET} ${CMAKE_CURRENT_SOURCE_DIR}/memmap_defines.ld)
+    pico_add_link_depend(${TARGET} ${CMAKE_CURRENT_SOURCE_DIR}/memmap_default.ld)
+endfunction()
+
+################################################################################
 # Flashloader
 set(FLASHLOADER pico-flashloader)
 
@@ -41,6 +53,11 @@ pico_add_uf2_output(${FLASHLOADER})
 pico_set_program_name(${FLASHLOADER} ${FLASHLOADER})
 target_compile_options(${FLASHLOADER} PRIVATE -Wall -Wextra -Wno-ignored-qualifiers -Os)
 
+# Use a separate linker script for the flashloader to make sure it is built
+# to run at the right location and cannot overflow into the applications's
+# address space
+set_linker_script(${FLASHLOADER} memmap_flashloader.ld)
+
 set(FLASHLOADER_UF2 ${CMAKE_CURRENT_BINARY_DIR}/${FLASHLOADER}.uf2)
 
 ################################################################################
@@ -64,7 +81,7 @@ pico_add_hex_output(${APP250})
 # the ELF image has issues
 # (see https://github.com/raspberrypi/pico-sdk/issues/573)
 target_link_options(${APP250} PRIVATE -Wl,-z,max-page-size=4096)
-pico_set_linker_script(${APP250} ${CMAKE_CURRENT_SOURCE_DIR}/memmap_default.ld)
+set_linker_script(${APP250} memmap_application.ld)
 
 set(APP250_UF2 ${CMAKE_CURRENT_BINARY_DIR}/${APP250}.uf2)
 
@@ -89,7 +106,7 @@ pico_add_hex_output(${APP800})
 # the ELF image has issues
 # (see https://github.com/raspberrypi/pico-sdk/issues/573)
 target_link_options(${APP800} PRIVATE -Wl,-z,max-page-size=4096)
-pico_set_linker_script(${APP800} ${CMAKE_CURRENT_SOURCE_DIR}/memmap_default.ld)
+set_linker_script(${APP800} memmap_application.ld)
 
 ################################################################################
 # Combine the flashloader and application into one flashable UF2 image
