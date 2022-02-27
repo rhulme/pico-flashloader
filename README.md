@@ -78,10 +78,6 @@ Received block
 Received block
 Received block
 Received block
-Received block
-Received block
-Received block
-Received block
 Storing new image in flash and then rebooting
 Rebooting into flashloader in 1 second
 Flashing LED every 800 milliseconds

@@ -14,7 +14,6 @@
 // error-checking and attempts have been made to keep the final code size
 // small (e.g. not using printf)
 
-#include <stdlib.h>
 #include <string.h>
 #include "pico/stdlib.h"
 #include "hardware/sync.h"
@@ -53,6 +52,13 @@ static const uint8_t TYPE_STARTLIN  = 0x05;
 
 // Offset within flash of the new app image to be flashed by the flashloader
 static const uint32_t FLASH_IMAGE_OFFSET = 128 * 1024;
+
+// Buffer to hold the incoming data before flashing
+static union
+{
+    tFlashHeader header;
+    uint8_t      buffer[sizeof(tFlashHeader) + 65536];
+} flashbuf;
 
 //****************************************************************************
 bool repeating_timer_callback(struct repeating_timer *t)
@@ -229,7 +235,6 @@ char* getLine(char* buffer)
 void readIntelHex()
 {
     uint32_t      offset = 0;
-    tFlashHeader* header = (tFlashHeader*)malloc(65536);
     char          line[1024];
     uint32_t      count = 0;
 
@@ -242,7 +247,7 @@ void readIntelHex()
             switch(rec.type)
             {
                 case TYPE_DATA:
-                    memcpy(&header->data[offset], rec.data, rec.count);
+                    memcpy(&flashbuf.header.data[offset], rec.data, rec.count);
                     offset += rec.count;
                     offset %= 65536;
                     if((offset % 1024) == 0)
@@ -250,7 +255,7 @@ void readIntelHex()
                     break;
 
                 case TYPE_EOF:
-                    flashImage(header, offset);
+                    flashImage(&flashbuf.header, offset);
                     break;
 
                 case TYPE_EXTSEG:
