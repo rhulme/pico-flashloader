@@ -21,7 +21,6 @@
 // the flashloader will drop back to bootrom bootloader.
 
 #include <stdint.h>
-#include <string.h>
 #include "hardware/regs/addressmap.h"
 #include "hardware/regs/m0plus.h"
 #include "hardware/structs/watchdog.h"
@@ -62,6 +61,14 @@ static const uint32_t  sStart = XIP_BASE + (uint32_t)&__APPLICATION_START;
 // The maximum number of times the flashloader will try to flash an image
 // before it gives up and boots in the bootrom bootloader
 static const uint32_t  sMaxRetries = 3;
+
+// Nothing else is running on the system, so it doesn't matter which
+// DMA channel we use
+static const uint8_t sDMAChannel = 0;
+
+// Buffer to store a page's worth of data for flashing.
+// Must be aligned to a 256 byte boundary to allow use as a DMA ring buffer
+static uint8_t sPageBuffer[256] __attribute__ ((aligned(256)));
 
 
 #ifndef USE_PICO_STDLIB
@@ -117,24 +124,20 @@ void __assert_func(const char *filename,
 // than the lookup table.
 uint32_t crc32(const void *data, size_t len, uint32_t crc)
 {
-    // Nothing else is running on the system, so it doesn't matter which
-    // DMA channel we use
-    static const uint8_t channel = 0;
-
     uint8_t dummy;
 
-    dma_channel_config c = dma_channel_get_default_config(channel);
+    dma_channel_config c = dma_channel_get_default_config(sDMAChannel);
     channel_config_set_transfer_data_size(&c, DMA_SIZE_8);
     channel_config_set_read_increment(&c, true);
     channel_config_set_write_increment(&c, false);
     channel_config_set_sniff_enable(&c, true);
 
     // Turn on CRC32 (non-bit-reversed data)
-    dma_sniffer_enable(channel, 0x00, true);
+    dma_sniffer_enable(sDMAChannel, 0x00, true);
     dma_hw->sniff_data = crc;
 
     dma_channel_configure(
-        channel,
+        sDMAChannel,
         &c,
         &dummy,
         data,
@@ -142,8 +145,44 @@ uint32_t crc32(const void *data, size_t len, uint32_t crc)
         true    // Start immediately
     );
 
-    dma_channel_wait_for_finish_blocking(channel);
+    dma_channel_wait_for_finish_blocking(sDMAChannel);
 
+    return(dma_hw->sniff_data);
+}
+
+//****************************************************************************
+// Prepare DMA channel to read a page (256 bytes) worth of data into the
+// page buffer starting from the given address.
+// The copying will be triggered by calling 'copyPage'
+void copyPageInit(const void* src)
+{
+    dma_channel_config c = dma_channel_get_default_config(sDMAChannel);
+    channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
+    channel_config_set_read_increment(&c, true);
+    channel_config_set_write_increment(&c, true);
+    channel_config_set_sniff_enable(&c, true);
+    channel_config_set_ring(&c, true, 8); // (log2(256) == 8)
+
+    // Turn on CRC32 (non-bit-reversed data)
+    dma_sniffer_enable(sDMAChannel, 0x00, true);
+    dma_hw->sniff_data = 0xffffffff;
+
+    dma_channel_configure(
+        sDMAChannel,
+        &c,
+        sPageBuffer,
+        src,
+        256 / 4,
+        false    // Do not start immediately
+    );
+}
+
+//****************************************************************************
+// Copy the next page of data to the page buffer and return the updated CRC32
+uint32_t copyPage()
+{
+    dma_channel_start(sDMAChannel);
+    dma_channel_wait_for_finish_blocking(sDMAChannel);
     return(dma_hw->sniff_data);
 }
 
@@ -189,6 +228,9 @@ int startMainApplication()
 // Flash the main application using the provided image.
 void flashFirmware(const tFlashHeader* header, uint32_t eraseLength)
 {
+    uint32_t crc = 0;
+    uint32_t offset = 256;
+
     // Start the watchdog and give us 500ms for each erase/write cycle.
     // This should be more than enough time but in case anything happens,
     // we'll reset and try again.
@@ -196,9 +238,6 @@ void flashFirmware(const tFlashHeader* header, uint32_t eraseLength)
 
     // Erase the target memory area
     flash_range_erase(flashoffset(sStart), eraseLength);
-
-    uint8_t  buffer[256];
-    uint32_t offset = 256;
 
     // Write everything except the first page.  If there's any kind
     // of power failure during writing, this will prevent anything
@@ -208,6 +247,9 @@ void flashFirmware(const tFlashHeader* header, uint32_t eraseLength)
     // separately)
     uint32_t pages = ((header->length - 1) >> 8);
 
+    // Prepare the DMA channel for copying
+    copyPageInit(header->data + offset);
+
     while(pages > 0)
     {
         // Reset the watchdog counter
@@ -215,30 +257,38 @@ void flashFirmware(const tFlashHeader* header, uint32_t eraseLength)
 
         // Copy the page to a RAM buffer so we're not trying to read from
         // flash whilst writing to it
-        memcpy(buffer, &header->data[offset], 256);
+        crc = copyPage();
         flash_range_program(flashoffset(sStart + offset),
-                            buffer,
+                            sPageBuffer,
                             256);
         offset += 256;
         pages--;
     }
 
-
     // Reset the watchdog counter
     watchdog_update();
 
-    // Now flash the first page which is the boot2 image with CRC.
-    memcpy(buffer, header->data, 256);
-    flash_range_program(flashoffset(sStart),
-                        buffer,
-                        256);
+    // Check that everything so far has been written correctly
+    if(crc == crc32(&header->data[256], offset - 256, 0xffffffff))
+    {
+        // Now flash the first page which is the boot2 image with CRC.
+        copyPageInit(header->data);
+        crc = copyPage();
 
-    // Reset the watchdog counter
-    watchdog_update();
+        flash_range_program(flashoffset(sStart),
+                            sPageBuffer,
+                            256);
 
-    // Invalidate the start of the flash image to prevent it being
-    // picked up again (prevents cyclic flashing if the image is bad)
-    flash_range_erase(flashoffset(header), 4096);
+        // Reset the watchdog counter
+        watchdog_update();
+
+        if(crc == crc32(header->data, 256, 0xffffffff))
+        {
+            // Invalidate the start of the flash image to prevent it being
+            // picked up again (prevents cyclic flashing if the image is bad)
+            flash_range_erase(flashoffset(header), 4096);
+        }
+    }
 
     // Disable the watchdog
     hw_clear_bits(&watchdog_hw->ctrl, WATCHDOG_CTRL_ENABLE_BITS);
