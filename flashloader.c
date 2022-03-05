@@ -94,7 +94,6 @@ void hard_assertion_failure(void)
     while(true)
         tight_loop_contents();
 }
-#endif
 
 //****************************************************************************
 // Provide our own assert function to prevent the default version pulling
@@ -114,6 +113,7 @@ void __assert_func(const char *filename,
     while(true)
         tight_loop_contents();
 }
+#endif
 
 //****************************************************************************
 // Calculate the CRC32 (no reflection, no final XOR) of a block of data.
