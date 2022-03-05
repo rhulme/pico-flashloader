@@ -80,9 +80,13 @@ Received block
 Received block
 Storing new image in flash and then rebooting
 Rebooting into flashloader in 1 second
+Application just updated!
 Flashing LED every 800 milliseconds
 ```
-That final message is from the new application.  The LED should now be blinking much slower.
+The 'Application just updated!' message shows the application has recognised that this is the first start after an update.  This is done by the flashloader writing `FLASH_APP_UPDATED` (defined in [`flashloader.h`](flashloader.h)) into the first scratch register.  The application should write a different value to the register once it has finished any processing it might need/want to perform to avoid being retriggered the next time it is started (unless it's via a hard reset in which case the scratch register will automatically be reset).
+
+The final message shows the new application is active.  The LED should now be blinking much slower.
+
 
 You can repeat the procedure with the `app250.hex` file.
 

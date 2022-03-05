@@ -13,6 +13,8 @@
 static const uint32_t FLASH_MAGIC1 = 0x8ecd5efb; // Randomly picked numbers
 static const uint32_t FLASH_MAGIC2 = 0xc5ae52a9;
 
+static const uint32_t FLASH_APP_UPDATED = 0xe3fa4ef2; // App has been updated
+
 typedef struct __packed __aligned(4)
 {
     uint32_t magic1;

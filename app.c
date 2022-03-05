@@ -294,6 +294,12 @@ int main()
     struct repeating_timer timer;
     add_repeating_timer_ms(LED_DELAY_MS, repeating_timer_callback, NULL, &timer);
 
+    if(watchdog_hw->scratch[0] == FLASH_APP_UPDATED)
+    {
+        uart_puts(PICO_DEFAULT_UART_INSTANCE, "Application just updated!\r\n");
+        watchdog_hw->scratch[0] = 0;
+    }
+
     uart_puts(PICO_DEFAULT_UART_INSTANCE, "Flashing LED every " TO_TEXT(LED_DELAY_MS) " milliseconds\r\n");
 
     readIntelHex();
