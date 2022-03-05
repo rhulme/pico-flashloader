@@ -385,6 +385,13 @@ int main(void)
         // Tried and failed to start the main application so try to find
         // an update image
         image = sStart + 0x1000;
+
+        // In case there are any problems during flashing, make it look like
+        // an update was requested so that the retry mechanism is correctly
+        // initialised.
+        watchdog_hw->scratch[0] = ~FLASH_MAGIC1;
+        watchdog_hw->scratch[1] = image;
+        watchdog_hw->scratch[2] = 0;
     }
 
     while(image < (XIP_BASE + PICO_FLASH_SIZE_BYTES))
