@@ -52,6 +52,7 @@ target_link_libraries(${FLASHLOADER} PRIVATE
         hardware_dma
         pico_platform
         pico_standard_link
+        pico_divider
         )
 
 pico_add_uf2_output(${FLASHLOADER})
