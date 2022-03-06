@@ -111,7 +111,7 @@ You should decide on a suitable location in flash to store your new image.  This
 
 # Possible extensions
 There are several different ways the flashloader could be extended if required:
-* Use two stages - the first stage is absolute minimal code that just tries to start the second and if that fails, starts the application.  This would allow the application to update the flashloader at the cost of a second 4k erase block.
+* Use two stages - the first stage is absolute minimal code that just tries to start the second and if that fails, starts the application.  This would allow the application to update the flashloader at the cost of a second 4k erase block. (see the [urloader](https://github.com/rhulme/pico-flashloader/tree/urloader) branch)
 
 * Start the watchdog before booting into a new application.  If the application does not stop or service the watchdog after startup, the flashloader would be re-triggered and could try to recover the system.
   * Recovering the system can get complicated very quickly as it means maintaining at least one other copy of the main application (possibly saved somewhere before it was overwritten) or providing the flashloader the means to receive a new image.  It may also be tricky to work out how the new application should decide when everything is OK but that will vary greatly from project to project.
