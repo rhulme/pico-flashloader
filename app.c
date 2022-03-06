@@ -21,6 +21,17 @@
 #include "hardware/watchdog.h"
 #include "hardware/structs/watchdog.h"
 #include "flashloader.h"
+#include "urloader.h"
+
+extern const void const * __FLASHLOADER_START;
+extern const void const * __FLASHLOADER_LENGTH;
+
+// __FLASHLOADER_START and __FLASHLOADER_LENGTH are a symbols defined in a
+// linker script so they appear as addresses rather than integer values.
+// We'll define a couple of helpers to get them into the form we want them
+// and make the code that uses them more readable.
+#define FLASHLOADER_START  ((uint32_t)&__FLASHLOADER_START)
+#define FLASHLOADER_LENGTH ((uint32_t)&__FLASHLOADER_LENGTH)
 
 #ifndef PICO_DEFAULT_LED_PIN
     #error This example needs a board with an LED
@@ -29,9 +40,6 @@
 #ifndef LED_DELAY_MS
     #error LED_DELAY_MS must be defined!
 #endif
-
-#define STRINGIFY(x) #x
-#define TO_TEXT(x) STRINGIFY(x)
 
 // Intel HEX record
 typedef struct
@@ -50,15 +58,9 @@ static const uint8_t TYPE_STARTSEG  = 0x03;
 static const uint8_t TYPE_EXTLIN    = 0x04;
 static const uint8_t TYPE_STARTLIN  = 0x05;
 
-// Offset within flash of the new app image to be flashed by the flashloader
-static const uint32_t FLASH_IMAGE_OFFSET = 128 * 1024;
-
 // Buffer to hold the incoming data before flashing
-static union
-{
-    tFlashHeader header;
-    uint8_t      buffer[sizeof(tFlashHeader) + 65536];
-} flashbuf;
+// (unfortunately it doesn't seem to be possible to use FLASHLOADER_LENGTH)
+uint8_t flashbuf[16384];
 
 //****************************************************************************
 bool repeating_timer_callback(struct repeating_timer *t)
@@ -169,41 +171,69 @@ int processRecord(const char* line, tRecord* record)
 }
 
 //****************************************************************************
-// Store the given image in flash then reboot into the flashloader to replace
-// the current application with the new image.
-void flashImage(tFlashHeader* header, uint32_t length)
+// Overwrite the flashloader with the given image then reboot if successful
+void flashImage(const uint8_t* data, uint32_t length)
 {
-    // Calculate length of header plus length of data
-    uint32_t totalLength = sizeof(tFlashHeader) + length;
-
     // Round erase length up to next 4096 byte boundary
-    uint32_t eraseLength = (totalLength + 4095) & 0xfffff000;
+    uint32_t eraseLength = (length + 4095) & 0xfffff000;
     uint32_t status;
+    uint32_t offset = 256;
+    uint32_t success = 0;
 
-    header->magic1 = FLASH_MAGIC1;
-    header->magic2 = FLASH_MAGIC2;
-    header->length = length;
-    header->crc32  = crc32(header->data, length, 0xffffffff);
+    // Make sure the image provided will fit in the available space
+    if(eraseLength > FLASHLOADER_LENGTH)
+        uart_puts(PICO_DEFAULT_UART_INSTANCE, "Flashloader image is too big!\r\n");
+    else
+    {
+        uart_puts(PICO_DEFAULT_UART_INSTANCE, "Updating flashloader and then rebooting\r\n");
 
-    uart_puts(PICO_DEFAULT_UART_INSTANCE, "Storing new image in flash and then rebooting\r\n");
+        status = save_and_disable_interrupts();
 
-    status = save_and_disable_interrupts();
+        flash_range_erase(FLASHLOADER_START, eraseLength);
 
-    flash_range_erase(FLASH_IMAGE_OFFSET, eraseLength);
-    flash_range_program(FLASH_IMAGE_OFFSET, (uint8_t*)header, totalLength);
+        // Write everything except the first page.  If there's any kind
+        // of power failure during writing, this will prevent anything
+        // trying to boot the partially flashed image
 
-    restore_interrupts(status);
-    uart_puts(PICO_DEFAULT_UART_INSTANCE, "Rebooting into flashloader in 1 second\r\n");
+        // Get total number of pages - 1 (because we're flashing the first page
+        // separately)
+        for(uint32_t pages = ((length - 1) / 256); pages > 0; pages--)
+        {
+            flash_range_program(FLASHLOADER_START + offset,
+                                data + offset,
+                                256);
+            offset += 256;
+        }
 
-    // Set up watchdog scratch registers so that the flashloader knows
-    // what to do after the reset
-    watchdog_hw->scratch[0] = FLASH_MAGIC1;
-    watchdog_hw->scratch[1] = XIP_BASE + FLASH_IMAGE_OFFSET;
-    watchdog_reboot(0x00000000, 0x00000000, 1000);
+        // Verify everything flashed so far
+        if(memcmp((void*)(XIP_BASE + FLASHLOADER_START + 256), data + 256, offset - 256) == 0)
+        {
+            // Now flash the first page which is the boot2 image with CRC.
+            flash_range_program(FLASHLOADER_START,
+                                data,
+                                256);
 
-    // Wait for the reset
-    while(true)
-        tight_loop_contents();
+            // If the first page was also good, everything is good.
+            // (if not, there'll be a CRC mismatch so the image won't be
+            // started anyway)
+            success = (memcmp((void*)(XIP_BASE + FLASHLOADER_START), data, 256) == 0);
+        }
+
+        restore_interrupts(status);
+
+        if(success)
+        {
+            uart_puts(PICO_DEFAULT_UART_INSTANCE, "Rebooting in 1 second\r\n");
+
+            watchdog_reboot(0x00000000, 0x00000000, 1000);
+
+            // Wait for the reset
+            while(true)
+                tight_loop_contents();
+        }
+        else
+            uart_puts(PICO_DEFAULT_UART_INSTANCE, "Flash verification failed!\r\n");
+    }
 }
 
 //****************************************************************************
@@ -247,7 +277,7 @@ void readIntelHex()
             switch(rec.type)
             {
                 case TYPE_DATA:
-                    memcpy(&flashbuf.header.data[offset], rec.data, rec.count);
+                    memcpy(&flashbuf[offset], rec.data, rec.count);
                     offset += rec.count;
                     offset %= 65536;
                     if((offset % 1024) == 0)
@@ -255,7 +285,7 @@ void readIntelHex()
                     break;
 
                 case TYPE_EOF:
-                    flashImage(&flashbuf.header, offset);
+                    flashImage(flashbuf, offset);
                     break;
 
                 case TYPE_EXTSEG:
@@ -277,10 +307,27 @@ void readIntelHex()
     }
 }
 
+//****************************************************************************
+void printHex(uint32_t value)
+{
+    static const char arr[] = "0123456789ABCDEF";
+
+    // 32 bits == 8 hex chars + 1 for terminating NULL
+    char buf[8 + 1];
+    buf[sizeof(buf)-1] = '\0';
+
+    for(int i = 0; i < sizeof(buf)-1; i++)
+    {
+        buf[i] = arr[value >> 28];
+        value <<= 4;
+    }
+
+    uart_puts(PICO_DEFAULT_UART_INSTANCE, buf);
+}
 
 //****************************************************************************
 // Entry point - start flashing the on-board LED and wait for a new
-// application image.
+// flashloader image.
 int main()
 {
     gpio_set_function(PICO_DEFAULT_UART_TX_PIN, GPIO_FUNC_UART);
@@ -294,13 +341,18 @@ int main()
     struct repeating_timer timer;
     add_repeating_timer_ms(LED_DELAY_MS, repeating_timer_callback, NULL, &timer);
 
+    uart_puts(PICO_DEFAULT_UART_INSTANCE, "Scratch: 0x");
+    printHex(watchdog_hw->scratch[0]);
+    uart_puts(PICO_DEFAULT_UART_INSTANCE, "\r\n");
+
     if(watchdog_hw->scratch[0] == FLASH_APP_UPDATED)
     {
         uart_puts(PICO_DEFAULT_UART_INSTANCE, "Application just updated!\r\n");
         watchdog_hw->scratch[0] = 0;
     }
 
-    uart_puts(PICO_DEFAULT_UART_INSTANCE, "Flashing LED every " TO_TEXT(LED_DELAY_MS) " milliseconds\r\n");
+    if(watchdog_hw->scratch[0] == URLOADER_BAD_FLASHLOADER)
+        uart_puts(PICO_DEFAULT_UART_INSTANCE, "Flashloader is invalid!\r\n");
 
     readIntelHex();
 

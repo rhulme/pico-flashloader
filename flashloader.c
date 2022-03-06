@@ -203,6 +203,14 @@ int startMainApplication()
             watchdog_hw->scratch[0] = 0;
         }
 
+#ifdef FLASHLOADER_TEST_VERSION
+        /***!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!***
+         * This block is only for testing purposes!
+         * It can/should be removed from production code
+         ***!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!***/
+        watchdog_hw->scratch[0] = FLASHLOADER_TEST_VERSION;
+#endif
+
         // Hold DMA block in reset again (in case the application doesn't
         // need DMA and doesn't want to waste power)
         reset_block(RESETS_RESET_DMA_BITS);
