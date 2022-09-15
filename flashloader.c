@@ -338,6 +338,9 @@ void configClock(enum clock_index clk_index, uint32_t src, uint32_t auxsrc)
 // Use the external oscillator as the clock reference to gain a bit of speed!
 void initClock()
 {
+    // Start tick in watchdog
+    watchdog_start_tick(XOSC_MHZ);
+
     clocks_hw->resus.ctrl = 0;
 
     xosc_init();
