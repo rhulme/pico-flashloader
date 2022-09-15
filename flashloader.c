@@ -245,7 +245,14 @@ void flashFirmware(const tFlashHeader* header, uint32_t eraseLength)
     watchdog_reboot(0, 0, 500);
 
     // Erase the target memory area
-    flash_range_erase(flashoffset(sStart), eraseLength);
+    uint32_t start = flashoffset(sStart);
+
+    for(uint32_t sectors = eraseLength / FLASH_SECTOR_SIZE; sectors > 0; sectors--)
+    {
+        flash_range_erase(start, FLASH_SECTOR_SIZE);
+        start += FLASH_SECTOR_SIZE;
+        watchdog_update();
+    }
 
     // Write everything except the first page.  If there's any kind
     // of power failure during writing, this will prevent anything
