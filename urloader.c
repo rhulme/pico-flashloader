@@ -30,8 +30,8 @@ bi_decl(bi_program_version_string("1.00"));
 #define bl2crc(x)      (*((uint32_t*)(((uint32_t)(x) + 0xfc))))
 
 //****************************************************************************
-// These functions are normally provided as part of pico_stdlib so we have to
-// provide them here if not we're not using it.
+// This is normally provided as part of pico_stdlib so we have to provide it
+// here if not we're not using it.
 void exit(int ret)
 {
     (void)ret;
@@ -39,36 +39,15 @@ void exit(int ret)
         tight_loop_contents();
 }
 
-void panic(const char* fmt,...)
-{
-    (void)fmt;
-    while(true)
-        tight_loop_contents();
-}
-
-void hard_assertion_failure(void)
-{
-    while(true)
-        tight_loop_contents();
-}
-
 //****************************************************************************
-// Provide our own assert function to prevent the default version pulling
-// in 'printf' functions in debug builds
-void __assert_func(const char *filename,
-                   int line,
-                   const char *assert_func,
-                   const char *expr)
+// Replace the standard 'atexit' with an empty version to avoid pulling in
+// additional code that we don't need anyway.
+int atexit(void *a, void (*f)(void*), void *d)
 {
-    (void)filename;
-    (void)line;
-    (void)assert_func;
-    (void)expr;
-
-    __breakpoint();
-
-    while(true)
-        tight_loop_contents();
+    (void)a;
+    (void)f;
+    (void)d;
+    return 0;
 }
 
 //****************************************************************************

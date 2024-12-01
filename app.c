@@ -182,10 +182,10 @@ void flashImage(const uint8_t* data, uint32_t length)
 
     // Make sure the image provided will fit in the available space
     if(eraseLength > FLASHLOADER_LENGTH)
-        uart_puts(PICO_DEFAULT_UART_INSTANCE, "Flashloader image is too big!\r\n");
+        uart_puts(PICO_DEFAULT_UART_INSTANCE(), "Flashloader image is too big!\r\n");
     else
     {
-        uart_puts(PICO_DEFAULT_UART_INSTANCE, "Updating flashloader and then rebooting\r\n");
+        uart_puts(PICO_DEFAULT_UART_INSTANCE(), "Updating flashloader and then rebooting\r\n");
 
         status = save_and_disable_interrupts();
 
@@ -223,7 +223,7 @@ void flashImage(const uint8_t* data, uint32_t length)
 
         if(success)
         {
-            uart_puts(PICO_DEFAULT_UART_INSTANCE, "Rebooting in 1 second\r\n");
+            uart_puts(PICO_DEFAULT_UART_INSTANCE(), "Rebooting in 1 second\r\n");
 
             watchdog_reboot(0x00000000, 0x00000000, 1000);
 
@@ -232,7 +232,7 @@ void flashImage(const uint8_t* data, uint32_t length)
                 tight_loop_contents();
         }
         else
-            uart_puts(PICO_DEFAULT_UART_INSTANCE, "Flash verification failed!\r\n");
+            uart_puts(PICO_DEFAULT_UART_INSTANCE(), "Flash verification failed!\r\n");
     }
 }
 
@@ -246,7 +246,7 @@ char* getLine(char* buffer)
 
     do
     {
-        c = uart_getc(PICO_DEFAULT_UART_INSTANCE);
+        c = uart_getc(PICO_DEFAULT_UART_INSTANCE());
 
         if((c != '\n') && (c != '\r'))
             *ptr++ = c;
@@ -281,7 +281,7 @@ void readIntelHex()
                     offset += rec.count;
                     offset %= 65536;
                     if((offset % 1024) == 0)
-                        uart_puts(PICO_DEFAULT_UART_INSTANCE, "Received block\r\n");
+                        uart_puts(PICO_DEFAULT_UART_INSTANCE(), "Received block\r\n");
                     break;
 
                 case TYPE_EOF:
@@ -322,7 +322,7 @@ void printHex(uint32_t value)
         value <<= 4;
     }
 
-    uart_puts(PICO_DEFAULT_UART_INSTANCE, buf);
+    uart_puts(PICO_DEFAULT_UART_INSTANCE(), buf);
 }
 
 //****************************************************************************
@@ -333,7 +333,7 @@ int main()
     gpio_set_function(PICO_DEFAULT_UART_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(PICO_DEFAULT_UART_RX_PIN, GPIO_FUNC_UART);
 
-    uart_init(PICO_DEFAULT_UART_INSTANCE, 115200);
+    uart_init(PICO_DEFAULT_UART_INSTANCE(), 115200);
 
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
@@ -341,18 +341,18 @@ int main()
     struct repeating_timer timer;
     add_repeating_timer_ms(LED_DELAY_MS, repeating_timer_callback, NULL, &timer);
 
-    uart_puts(PICO_DEFAULT_UART_INSTANCE, "Scratch: 0x");
+    uart_puts(PICO_DEFAULT_UART_INSTANCE(), "Scratch: 0x");
     printHex(watchdog_hw->scratch[0]);
-    uart_puts(PICO_DEFAULT_UART_INSTANCE, "\r\n");
+    uart_puts(PICO_DEFAULT_UART_INSTANCE(), "\r\n");
 
     if(watchdog_hw->scratch[0] == FLASH_APP_UPDATED)
     {
-        uart_puts(PICO_DEFAULT_UART_INSTANCE, "Application just updated!\r\n");
+        uart_puts(PICO_DEFAULT_UART_INSTANCE(), "Application just updated!\r\n");
         watchdog_hw->scratch[0] = 0;
     }
 
     if(watchdog_hw->scratch[0] == URLOADER_BAD_FLASHLOADER)
-        uart_puts(PICO_DEFAULT_UART_INSTANCE, "Flashloader is invalid!\r\n");
+        uart_puts(PICO_DEFAULT_UART_INSTANCE(), "Flashloader is invalid!\r\n");
 
     readIntelHex();
 

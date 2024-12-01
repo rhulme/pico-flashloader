@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.13)
 set(CMAKE_C_STANDARD 11)
 
 set(PICO_PLATFORM rp2040)
@@ -13,9 +13,9 @@ project(${PROJECT} C CXX)
 
 pico_sdk_init()
 
-# Need at least SDK v1.3.0 (due to https://github.com/raspberrypi/pico-sdk/issues/573)
-if(${PICO_SDK_VERSION_STRING} VERSION_LESS "1.3.0")
-    message(FATAL_ERROR "Pico SDK v1.3.0 or greater is required.  You have ${PICO_SDK_VERSION_STRING}")
+# Need at least SDK v2.0.0
+if(${PICO_SDK_VERSION_STRING} VERSION_LESS "2.0.0")
+    message(FATAL_ERROR "Pico SDK v2.0.0 or greater is required.  You have ${PICO_SDK_VERSION_STRING}")
 endif()
 
 ################################################################################
@@ -47,10 +47,14 @@ target_link_libraries(${URLOADER} PRIVATE
         hardware_dma
         pico_platform
         pico_standard_link
+        pico_crt0
+        pico_runtime_headers
+        pico_bootrom
         )
 
 pico_add_uf2_output(${URLOADER})
 target_compile_options(${URLOADER} PUBLIC -Wall -Wextra -Wno-ignored-qualifiers -Os)
+pico_minimize_runtime(${URLOADER} EXCLUDE ALL)
 
 # Use a separate linker script for the urloader to make sure it is built
 # to run at the right location (right at the start) and cannot overflow into
@@ -82,12 +86,16 @@ target_link_libraries(${FLASHLOADER1} PRIVATE
         hardware_dma
         pico_platform
         pico_standard_link
+        pico_crt0
+        pico_runtime_headers
         pico_divider
         )
 
 pico_add_uf2_output(${FLASHLOADER1})
 pico_add_hex_output(${FLASHLOADER1})
 pico_set_program_name(${FLASHLOADER1} ${FLASHLOADER1})
+pico_minimize_runtime(${FLASHLOADER1} EXCLUDE ALL)
+
 target_compile_options(${FLASHLOADER1} PRIVATE -Wall -Wextra -Wno-ignored-qualifiers -Os)
 target_compile_definitions(${FLASHLOADER1} PRIVATE FLASHLOADER_TEST_VERSION=1)
 
@@ -120,12 +128,15 @@ target_link_libraries(${FLASHLOADER2} PRIVATE
         hardware_dma
         pico_platform
         pico_standard_link
+        pico_crt0
+        pico_runtime_headers
         pico_divider
         )
 
 pico_add_uf2_output(${FLASHLOADER2})
 pico_add_hex_output(${FLASHLOADER2})
 pico_set_program_name(${FLASHLOADER2} ${FLASHLOADER2})
+pico_minimize_runtime(${FLASHLOADER2} EXCLUDE ALL)
 target_compile_options(${FLASHLOADER2} PRIVATE -Wall -Wextra -Wno-ignored-qualifiers -Os)
 target_compile_definitions(${FLASHLOADER2} PRIVATE FLASHLOADER_TEST_VERSION=2)
 
