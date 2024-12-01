@@ -25,7 +25,7 @@
 extern void* __FLASHLOADER_START;
 extern void* __APPLICATION_START;
 
-bi_decl(bi_program_version_string("1.00"));
+bi_decl(bi_program_version_string("1.01"));
 
 #define bl2crc(x)      (*((uint32_t*)(((uint32_t)(x) + 0xfc))))
 
