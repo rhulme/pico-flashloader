@@ -70,29 +70,15 @@ static const uint8_t sDMAChannel = 0;
 // Must be aligned to a 256 byte boundary to allow use as a DMA ring buffer
 static uint8_t sPageBuffer[256] __attribute__ ((aligned(256)));
 
-
-#ifndef USE_PICO_STDLIB
 //****************************************************************************
-// These functions are normally provided as part of pico_stdlib so we have to
-// provide them here if not we're not using it.
-void exit(int ret)
+// Replace the standard 'atexit' with an empty version to avoid pulling in
+// additional code that we don't need anyway.
+int atexit(void *a, void (*f)(void*), void *d)
 {
-    (void)ret;
-    while(true)
-        tight_loop_contents();
-}
-
-void panic(const char* fmt,...)
-{
-    (void)fmt;
-    while(true)
-        tight_loop_contents();
-}
-
-void hard_assertion_failure(void)
-{
-    while(true)
-        tight_loop_contents();
+    (void)a;
+    (void)f;
+    (void)d;
+    return 0;
 }
 
 //****************************************************************************
@@ -110,6 +96,23 @@ void __assert_func(const char *filename,
 
     __breakpoint();
 
+    while(true)
+        tight_loop_contents();
+}
+
+#ifndef USE_PICO_STDLIB
+//****************************************************************************
+// These functions are normally provided as part of pico_stdlib so we have to
+// provide them here if not we're not using it.
+void exit(int ret)
+{
+    (void)ret;
+    while(true)
+        tight_loop_contents();
+}
+
+void hard_assertion_failure(void)
+{
     while(true)
         tight_loop_contents();
 }
@@ -309,28 +312,28 @@ void flashFirmware(const tFlashHeader* header, uint32_t eraseLength)
 //
 // This is mostly lifted from clock_configure with some code removed that
 // doesn't apply to clk_ref or clk_sys and using a fixed divisor
-void configClock(enum clock_index clk_index, uint32_t src, uint32_t auxsrc)
+void configClock(clock_handle_t clock, uint32_t src, uint32_t auxsrc)
 {
-    clock_hw_t *clock = &clocks_hw->clk[clk_index];
+    clock_hw_t *clock_hw = &clocks_hw->clk[clock];
 
-    clock->div = 0x100; // divisor == 1.00
+    clock_hw->div = 0x100; // divisor == 1.00
 
     if(src == CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX)
     {
-        hw_clear_bits(&clock->ctrl, CLOCKS_CLK_REF_CTRL_SRC_BITS);
-        while(!(clock->selected & 1u))
+        hw_clear_bits(&clock_hw->ctrl, CLOCKS_CLK_REF_CTRL_SRC_BITS);
+        while(!(clock_hw->selected & 1u))
             tight_loop_contents();
     }
 
     // Set aux mux first, and then glitchless mux
-    hw_write_masked(&clock->ctrl,
+    hw_write_masked(&clock_hw->ctrl,
                     (auxsrc << CLOCKS_CLK_SYS_CTRL_AUXSRC_LSB),
                     CLOCKS_CLK_SYS_CTRL_AUXSRC_BITS);
 
-    hw_write_masked(&clock->ctrl,
+    hw_write_masked(&clock_hw->ctrl,
                     src << CLOCKS_CLK_REF_CTRL_SRC_LSB,
                     CLOCKS_CLK_REF_CTRL_SRC_BITS);
-    while(!(clock->selected & (1u << src)))
+    while(!(clock_hw->selected & (1u << src)))
         tight_loop_contents();
 }
 

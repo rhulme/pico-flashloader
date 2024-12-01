@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.13)
 set(CMAKE_C_STANDARD 11)
 
 set(PICO_PLATFORM rp2040)
@@ -13,9 +13,9 @@ project(${PROJECT} C CXX)
 
 pico_sdk_init()
 
-# Need at least SDK v1.3.0 (due to https://github.com/raspberrypi/pico-sdk/issues/573)
-if(${PICO_SDK_VERSION_STRING} VERSION_LESS "1.3.0")
-    message(FATAL_ERROR "Pico SDK v1.3.0 or greater is required.  You have ${PICO_SDK_VERSION_STRING}")
+# Need at least SDK v2.0.0
+if(${PICO_SDK_VERSION_STRING} VERSION_LESS "2.0.0")
+    message(FATAL_ERROR "Pico SDK v2.0.0 or greater is required.  You have ${PICO_SDK_VERSION_STRING}")
 endif()
 
 ################################################################################
@@ -52,11 +52,14 @@ target_link_libraries(${FLASHLOADER} PRIVATE
         hardware_dma
         pico_platform
         pico_standard_link
+        pico_crt0
+        pico_runtime_headers
         pico_divider
         )
 
 pico_add_uf2_output(${FLASHLOADER})
 pico_set_program_name(${FLASHLOADER} ${FLASHLOADER})
+pico_minimize_runtime(${FLASHLOADER} EXCLUDE ALL)
 target_compile_options(${FLASHLOADER} PRIVATE -Wall -Wextra -Wno-ignored-qualifiers -Os)
 
 # Use a separate linker script for the flashloader to make sure it is built

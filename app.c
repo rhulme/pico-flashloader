@@ -185,7 +185,7 @@ void flashImage(tFlashHeader* header, uint32_t length)
     header->length = length;
     header->crc32  = crc32(header->data, length, 0xffffffff);
 
-    uart_puts(PICO_DEFAULT_UART_INSTANCE, "Storing new image in flash and then rebooting\r\n");
+    uart_puts(PICO_DEFAULT_UART_INSTANCE(), "Storing new image in flash and then rebooting\r\n");
 
     status = save_and_disable_interrupts();
 
@@ -193,7 +193,7 @@ void flashImage(tFlashHeader* header, uint32_t length)
     flash_range_program(FLASH_IMAGE_OFFSET, (uint8_t*)header, totalLength);
 
     restore_interrupts(status);
-    uart_puts(PICO_DEFAULT_UART_INSTANCE, "Rebooting into flashloader in 1 second\r\n");
+    uart_puts(PICO_DEFAULT_UART_INSTANCE(), "Rebooting into flashloader in 1 second\r\n");
 
     // Set up watchdog scratch registers so that the flashloader knows
     // what to do after the reset
@@ -216,7 +216,7 @@ char* getLine(char* buffer)
 
     do
     {
-        c = uart_getc(PICO_DEFAULT_UART_INSTANCE);
+        c = uart_getc(PICO_DEFAULT_UART_INSTANCE());
 
         if((c != '\n') && (c != '\r'))
             *ptr++ = c;
@@ -251,7 +251,7 @@ void readIntelHex()
                     offset += rec.count;
                     offset %= 65536;
                     if((offset % 1024) == 0)
-                        uart_puts(PICO_DEFAULT_UART_INSTANCE, "Received block\r\n");
+                        uart_puts(PICO_DEFAULT_UART_INSTANCE(), "Received block\r\n");
                     break;
 
                 case TYPE_EOF:
@@ -286,7 +286,7 @@ int main()
     gpio_set_function(PICO_DEFAULT_UART_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(PICO_DEFAULT_UART_RX_PIN, GPIO_FUNC_UART);
 
-    uart_init(PICO_DEFAULT_UART_INSTANCE, 115200);
+    uart_init(PICO_DEFAULT_UART_INSTANCE(), 115200);
 
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
@@ -296,11 +296,11 @@ int main()
 
     if(watchdog_hw->scratch[0] == FLASH_APP_UPDATED)
     {
-        uart_puts(PICO_DEFAULT_UART_INSTANCE, "Application just updated!\r\n");
+        uart_puts(PICO_DEFAULT_UART_INSTANCE(), "Application just updated!\r\n");
         watchdog_hw->scratch[0] = 0;
     }
 
-    uart_puts(PICO_DEFAULT_UART_INSTANCE, "Flashing LED every " TO_TEXT(LED_DELAY_MS) " milliseconds\r\n");
+    uart_puts(PICO_DEFAULT_UART_INSTANCE(), "Flashing LED every " TO_TEXT(LED_DELAY_MS) " milliseconds\r\n");
 
     readIntelHex();
 
